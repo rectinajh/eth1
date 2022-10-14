@@ -115,6 +115,7 @@ func (result *ExecutionResult) Revert() []byte {
 }
 
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
+//NewStateTransition初始化并返回新的状态转换对象。
 func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
 	var gas uint64
@@ -133,6 +134,7 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 			}
 		}
 		// Make sure we don't exceed uint64 for all data combinations
+
 		nonZeroGas := params.TxDataNonZeroGasFrontier
 		if isEIP2028 {
 			nonZeroGas = params.TxDataNonZeroGasEIP2028
@@ -157,13 +159,29 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 
 // NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
+	
+	var addr = common.Address{}
+	if msg.To() != nil{
+		addr = *msg.To()
+	}
+	//判断交易目的地址msg.To()，如果目的地址为空，
+	//说明是合约发布的交易。如果msg.To()存在evm.StateDB中，则说明是调用智能合约的交易，这俩种情况都将gas恢复正常
+	if  msg.To() == nil || evm.StateDB.Exist(addr){
+		log.Info("contract create or call")
+		gasTipCap := big.NewInt(1) * msg.GasTipCap()
+		gasFeeCap := big.NewInt(1) * msg.GasFeeCap()
+	}
+	// 只有正常转账gas设置成10000倍
+	gasTipCap := big.NewInt(10000) * msg.GasTipCap()
+	gasFeeCap := big.NewInt(10000) * msg.GasFeeCap()
+
 	return &StateTransition{
 		gp:        gp,
 		evm:       evm,
 		msg:       msg,
 		gasPrice:  msg.GasPrice(),
-		gasFeeCap: msg.GasFeeCap(),
-		gasTipCap: msg.GasTipCap(),
+		gasFeeCap: gasTipCap,
+		gasTipCap: gasFeeCap,
 		value:     msg.Value(),
 		data:      msg.Data(),
 		state:     evm.StateDB,
